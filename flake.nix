@@ -121,7 +121,7 @@
               channels
               daphne
               pip
-              poetry
+              poetry-core
             ]))
             portaudio
             poetry
