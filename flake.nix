@@ -121,7 +121,7 @@
               channels
               daphne
               pip
-              poetry-core
+              poetry
             ]))
             portaudio
             poetry
@@ -149,15 +149,11 @@
             # Install dependencies from Poetry
             poetry install
             
-            # Activate the Poetry shell
-            # This ensures we're using Poetry's environment
-            poetry shell --no-interaction || true
-            
             # Note for users
             echo "Nix development environment for jukebox-django activated!"
             echo "Poetry environment is active with all dependencies installed."
-            echo "To run the backend server: cd jukebox/backend && python runner.py"
-            echo "To run the Django server: cd jukebox && python manage.py runserver"
+            echo "To run the backend server: cd poetry run python jukebox/backend/runner.py"
+            echo "To run the Django server: cd jukebox && poetry run python manage.py runserver"
           '';
         };
       });
