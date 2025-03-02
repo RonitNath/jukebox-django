@@ -24,6 +24,7 @@
           channels
           daphne
           pip
+          poetry
         ]);
 
         # Create a custom derivation for the jukebox app
@@ -35,6 +36,7 @@
           buildInputs = [
             pythonEnv
             pkgs.portaudio
+            pkgs.poetry
           ];
 
           # No build phase, just install the files
@@ -48,28 +50,35 @@
             mkdir -p $out/bin
             cat > $out/bin/jukebox-django-server << EOF
             #!/bin/sh
-            cd $out/share/jukebox-django/jukebox
-            ${pythonEnv}/bin/python manage.py runserver "\$@"
+            cd $out/share/jukebox-django
+            ${pkgs.poetry}/bin/poetry run python jukebox/manage.py runserver "\$@"
             EOF
 
             # Create a wrapper script to run the backend
             cat > $out/bin/jukebox-django-backend << EOF
             #!/bin/sh
-            cd $out/share/jukebox-django/jukebox/backend
-            ${pythonEnv}/bin/python runner.py "\$@"
+            cd $out/share/jukebox-django
+            ${pkgs.poetry}/bin/poetry run python jukebox/backend/runner.py "\$@"
             EOF
 
             # Create a setup script
             cat > $out/bin/jukebox-django-setup << EOF
             #!/bin/sh
-            if [ ! -d .venv ]; then
-              echo "Creating virtual environment..."
-              ${pythonEnv}/bin/python -m venv .venv
-              . .venv/bin/activate
-              pip install django-icons==24.4
-            else
-              . .venv/bin/activate
+            cd $out/share/jukebox-django
+            if [ ! -f pyproject.toml ]; then
+              echo "Initializing Poetry project..."
+              ${pkgs.poetry}/bin/poetry init --no-interaction \\
+                --name jukebox-django \\
+                --description "OCF Jukebox Django Application" \\
+                --author "OCF" \\
+                --python ">=3.11,<3.12"
+              
+              # Add required dependencies to Poetry
+              ${pkgs.poetry}/bin/poetry add django yt-dlp jsonpickle wheel pyaudio websockets aioconsole channels daphne django-icons==24.4
             fi
+            
+            # Install all dependencies
+            ${pkgs.poetry}/bin/poetry install
             EOF
 
             chmod +x $out/bin/jukebox-django-server
@@ -79,12 +88,12 @@
 
           # Ensure Python can find portaudio
           fixupPhase = ''
-            wrapProgram $out/bin/jukebox-django-server \
-              --prefix LD_LIBRARY_PATH : ${pkgs.portaudio}/lib \
+            wrapProgram $out/bin/jukebox-django-server \\
+              --prefix LD_LIBRARY_PATH : ${pkgs.portaudio}/lib \\
               --prefix PYTHONPATH : $PYTHONPATH
 
-            wrapProgram $out/bin/jukebox-django-backend \
-              --prefix LD_LIBRARY_PATH : ${pkgs.portaudio}/lib \
+            wrapProgram $out/bin/jukebox-django-backend \\
+              --prefix LD_LIBRARY_PATH : ${pkgs.portaudio}/lib \\
               --prefix PYTHONPATH : $PYTHONPATH
           '';
 
@@ -112,8 +121,10 @@
               channels
               daphne
               pip
+              poetry
             ]))
             portaudio
+            poetry
             ffmpeg
           ];
 
@@ -122,19 +133,29 @@
             export PYTHONPATH=$PWD:$PYTHONPATH
             export LD_LIBRARY_PATH=${pkgs.portaudio}/lib:$LD_LIBRARY_PATH
             
-            # Create a local virtual environment for pip packages
-            if [ ! -d .venv ]; then
-              echo "Creating virtual environment..."
-              python -m venv .venv
-              . .venv/bin/activate
-              pip install django-icons==24.4
-            else
-              . .venv/bin/activate
+            # Check for a pyproject.toml file, create one if it doesn't exist
+            if [ ! -f pyproject.toml ]; then
+              echo "Initializing Poetry project..."
+              poetry init --no-interaction \
+                --name jukebox-django \
+                --description "OCF Jukebox Django Application" \
+                --author "OCF" \
+                --python ">=3.11,<3.12"
+              
+              # Add required dependencies to Poetry
+              poetry add django yt-dlp jsonpickle wheel pyaudio websockets aioconsole channels daphne django-icons==24.4
             fi
+            
+            # Install dependencies from Poetry
+            poetry install
+            
+            # Activate the Poetry shell
+            # This ensures we're using Poetry's environment
+            poetry shell --no-interaction || true
             
             # Note for users
             echo "Nix development environment for jukebox-django activated!"
-            echo "Virtual environment is active with all dependencies installed."
+            echo "Poetry environment is active with all dependencies installed."
             echo "To run the backend server: cd jukebox/backend && python runner.py"
             echo "To run the Django server: cd jukebox && python manage.py runserver"
           '';
